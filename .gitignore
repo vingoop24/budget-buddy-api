@@ -1,0 +1,16 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Secrets
+.env
+
+# Database
+*.db
+
+# Uploaded receipts
+receipts/
+
+# macOS
+.DS_Store
