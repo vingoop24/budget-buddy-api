@@ -43,3 +43,10 @@ class Budget(SQLModel, table=True):
     id: int = Field(default=1, primary_key=True)
     amount: float
     currency: str = "USD"
+
+
+class CategoryBudget(SQLModel, table=True):
+    """Monthly spending limit for one category, in the main budget's currency."""
+
+    category: str = Field(primary_key=True, max_length=60)
+    amount: float

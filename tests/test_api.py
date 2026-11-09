@@ -247,3 +247,78 @@ def test_assistant_with_key(client, monkeypatch):
     assert res.status_code == 200
     assert res.json() == {"question": "How am I doing?", "response": "You're on track."}
     assert seen["total_spent"] == 12
+
+
+def test_category_budgets_crud(client):
+    assert client.get("/category-budgets").json() == []
+    res = client.put("/category-budgets/Groceries", json={"amount": 300})
+    assert res.status_code == 200 and res.json() == {"category": "Groceries", "amount": 300.0}
+    client.put("/category-budgets/Groceries", json={"amount": 250})  # update, not duplicate
+    client.put("/category-budgets/Pets", json={"amount": 40})  # custom category
+    assert client.get("/category-budgets").json() == [
+        {"category": "Groceries", "amount": 250.0},
+        {"category": "Pets", "amount": 40.0},
+    ]
+    assert client.put("/category-budgets/Groceries", json={"amount": 0}).status_code == 422
+    assert client.delete("/category-budgets/Pets").status_code == 204
+    assert client.delete("/category-budgets/Pets").status_code == 404
+    assert [c["category"] for c in client.get("/category-budgets").json()] == ["Groceries"]
+
+
+def test_summary_category_limits_and_alerts(client):
+    client.put("/budget", json={"amount": 1000, "currency": "USD"})
+    client.put("/category-budgets/Groceries", json={"amount": 100})
+    client.put("/category-budgets/Transport", json={"amount": 50})
+    client.put("/category-budgets/Travel", json={"amount": 500})
+    add(client, amount=120, category="Groceries")  # 120% -> over
+    add(client, amount=42, category="Transport")  # 84% -> warning
+    add(client, amount=10, category="Travel")  # 2% -> good
+    add(client, amount=999, category="Groceries", date="2020-01-01")  # other month: ignored
+
+    s = client.get("/summary").json()
+    cats = {c["category"]: c for c in s["category_budgets"]}
+    assert [c["category"] for c in s["category_budgets"]] == ["Groceries", "Transport", "Travel"]
+    assert cats["Groceries"] == {
+        "category": "Groceries", "limit": 100.0, "spent": 120.0,
+        "remaining": -20.0, "percent_used": 120.0, "status": "over_budget",
+    }
+    assert cats["Transport"]["status"] == "warning"
+    assert cats["Travel"]["status"] == "good"
+
+    assert s["status"] == "good"  # 172 of 1000 overall
+    assert [(a["level"], a["category"]) for a in s["alerts"]] == [
+        ("over", "Groceries"),
+        ("warning", "Transport"),
+    ]
+    assert "20.00 USD over" in s["alerts"][0]["message"]
+
+
+def test_overall_budget_alert(client):
+    client.put("/budget", json={"amount": 100, "currency": "USD"})
+    add(client, amount=85)
+    s = client.get("/summary").json()
+    assert s["alerts"] == [
+        {"level": "warning", "category": None, "message": "You've used 85% of your monthly budget. 15.00 USD left."}
+    ]
+    add(client, amount=30)
+    assert client.get("/summary").json()["alerts"][0]["level"] == "over"
+
+
+def test_trends(client):
+    add(client, amount=10, date="2026-09-03")
+    add(client, amount=5.5, date="2026-09-20")
+    add(client, amount=20, date="2026-11-01")
+    add(client, amount=99, date="2026-11-02", currency="EUR")  # other currency excluded
+    add(client, amount=7, date="2026-05-01")  # before the window
+
+    t = client.get("/trends", params={"months": 3, "end": "2026-11"}).json()
+    assert t["currency"] == "USD"
+    assert t["months"] == [
+        {"month": "2026-09", "total_spent": 15.5},
+        {"month": "2026-10", "total_spent": 0.0},
+        {"month": "2026-11", "total_spent": 20.0},
+    ]
+    # Year boundary
+    t = client.get("/trends", params={"months": 2, "end": "2026-01"}).json()
+    assert [m["month"] for m in t["months"]] == ["2025-12", "2026-01"]
+    assert client.get("/trends", params={"months": 0}).status_code == 422

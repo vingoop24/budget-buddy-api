@@ -81,6 +81,15 @@ class BudgetRead(BaseModel):
     currency: str
 
 
+class CategoryBudgetUpdate(BaseModel):
+    amount: float = Field(gt=0, le=10_000_000)
+
+
+class CategoryBudgetRead(BaseModel):
+    category: str
+    amount: float
+
+
 class ChatRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
 

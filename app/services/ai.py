@@ -92,6 +92,11 @@ def ask_assistant(question: str, summary: dict) -> str:
         "remaining": summary["remaining"],
         "percent_used": summary["percent_used"],
         "category_totals": summary["category_totals"],
+        "category_limits": [
+            {k: c[k] for k in ("category", "limit", "spent", "remaining", "status")}
+            for c in summary["category_budgets"]
+        ],
+        "alerts": [a["message"] for a in summary["alerts"]],
         "other_currency_totals": summary["other_currency_totals"],
         "recent_expenses": recent,
     }
