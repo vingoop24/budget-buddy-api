@@ -58,9 +58,15 @@ def list_expenses(
 
 @router.post("/expenses", response_model=ExpenseRead, status_code=201)
 def create_expense(body: ExpenseCreate, session: Session = Depends(get_session)):
-    expense = Expense(**body.model_dump())
+    expense = Expense(**body.model_dump(exclude={"receipt_token"}))
+    if body.receipt_token:
+        expense.receipt_image = receipts.claim_pending(body.receipt_token)
     session.add(expense)
-    session.commit()
+    try:
+        session.commit()
+    except Exception:
+        receipts.delete_image(expense.receipt_image)
+        raise
     session.refresh(expense)
     return to_read(expense)
 

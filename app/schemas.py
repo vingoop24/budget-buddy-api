@@ -28,6 +28,8 @@ class ExpenseCreate(BaseModel):
     date: Date
     payment_method: str | None = Field(default=None, max_length=60)
     notes: str | None = Field(default=None, max_length=1000)
+    # From POST /scan-receipt: attaches the scanned image to this new expense.
+    receipt_token: str | None = Field(default=None, max_length=40)
 
     _merchant = field_validator("merchant", "category")(_required_text)
     _cur = field_validator("currency")(_currency)
@@ -95,3 +97,5 @@ class ReceiptData(BaseModel):
     category: str
     date: Date
     source: str  # "ai" or "ocr"
+    missing: list[str] = []  # fields that couldn't be read and were defaulted
+    receipt_token: str | None = None  # pass to POST /expenses to attach the image

@@ -13,9 +13,12 @@ router = APIRouter(tags=["receipts"])
 
 @router.post("/scan-receipt", response_model=ReceiptData)
 def scan_receipt(receipt: UploadFile = File(...), session: Session = Depends(get_session)):
-    """Extract fields from a receipt without saving anything."""
-    data, _, mime = receipts.read_image(receipt)
-    return receipts.extract(data, mime, get_budget(session).currency)
+    """Extract fields from a receipt for the user to review. No expense is created;
+    the image is held for 24h and attached when the returned `receipt_token` is
+    sent with POST /expenses."""
+    data, ext, mime = receipts.read_image(receipt)
+    extracted = receipts.extract(data, mime, get_budget(session).currency)
+    return {**extracted, "receipt_token": receipts.save_pending(data, ext)}
 
 
 @router.post("/scan-and-save-receipt", status_code=201)

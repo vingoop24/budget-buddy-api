@@ -9,6 +9,8 @@ FastAPI backend for Budget Buddy, an AI-powered personal finance assistant.
 - Calendar-month summary: spent, remaining, % used, category totals, insights
 - Receipt upload and viewing, stored under random file names
 - Receipt scanning with OpenAI vision, falling back to local Tesseract OCR
+- Scan review: extract fields without saving, flag fields that couldn't be read,
+  then attach the image when the user confirms
 - AI budgeting assistant that uses this month's data
 
 ## Setup
@@ -54,15 +56,24 @@ main.py              shim so `uvicorn main:app` works
 | --- | --- | --- |
 | GET | `/health` | Status and whether AI is configured |
 | GET | `/expenses?month=YYYY-MM&category=&q=` | List expenses, newest first |
-| POST | `/expenses` | Create an expense |
+| POST | `/expenses` | Create an expense (optional `receipt_token` attaches a scanned image) |
 | GET / PATCH / DELETE | `/expenses/{id}` | Read, update, delete an expense |
 | POST / GET | `/expenses/{id}/receipt` | Attach / view a receipt image |
 | GET | `/categories` | Default and used categories |
 | GET / PUT | `/budget` | Read / set the monthly budget |
 | GET | `/summary?month=YYYY-MM` | Monthly summary (`/ai-insights` is an alias) |
-| POST | `/scan-receipt` | Extract receipt fields without saving |
+| POST | `/scan-receipt` | Extract fields for review (returns `missing` + `receipt_token`) |
 | POST | `/scan-and-save-receipt` | Extract and save as an expense |
 | POST | `/ai-assistant` | Ask the budgeting assistant |
+
+### Scan review flow
+
+1. `POST /scan-receipt` reads the image and holds it for 24 hours. It returns
+   the extracted fields, a `missing` list of fields it couldn't read, and a
+   `receipt_token`.
+2. The user corrects the fields.
+3. `POST /expenses` with the corrected fields plus `receipt_token` saves the
+   expense and attaches the image. Each token works once.
 
 Only expenses in the budget's currency count toward the budget. Others are
 reported in `other_currency_totals`.

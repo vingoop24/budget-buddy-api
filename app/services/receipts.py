@@ -3,6 +3,7 @@
 import io
 import logging
 import re
+import time
 import uuid
 from datetime import date
 from pathlib import Path
@@ -60,44 +61,96 @@ def delete_image(name: str | None) -> None:
             log.warning("Could not delete receipt %s", name)
 
 
-# ---------- normalisation ----------
+# ---------- pending receipts (scanned, awaiting user confirmation) ----------
 
-def _to_amount(value) -> float:
-    if isinstance(value, (int, float)):
-        return round(float(value), 2)
-    if isinstance(value, str):
+PENDING_TTL_SECONDS = 24 * 60 * 60
+TOKEN_PATTERN = r"^[0-9a-f]{32}\.(jpg|png|webp)$"
+
+
+def _pending_dir() -> Path:
+    return settings.receipt_dir / "pending"
+
+
+def _cleanup_pending() -> None:
+    cutoff = time.time() - PENDING_TTL_SECONDS
+    for path in _pending_dir().glob("*"):
+        try:
+            if path.is_file() and path.stat().st_mtime < cutoff:
+                path.unlink()
+        except OSError:
+            log.warning("Could not clean up pending receipt %s", path.name)
+
+
+def save_pending(data: bytes, ext: str) -> str:
+    """Hold a scanned image until the user confirms the expense. Returns its token."""
+    _pending_dir().mkdir(parents=True, exist_ok=True)
+    _cleanup_pending()
+    token = f"{uuid.uuid4().hex}.{ext}"
+    (_pending_dir() / token).write_bytes(data)
+    return token
+
+
+def claim_pending(token: str) -> str:
+    """Move a pending image into permanent storage. Returns the stored file name."""
+    if not re.match(TOKEN_PATTERN, token):
+        raise HTTPException(status_code=422, detail="Invalid receipt token")
+    source = _pending_dir() / token
+    if not source.is_file():
+        raise HTTPException(
+            status_code=400, detail="Receipt image expired or was already used. Scan it again."
+        )
+    settings.receipt_dir.mkdir(parents=True, exist_ok=True)
+    name = f"{uuid.uuid4().hex}{source.suffix}"
+    source.replace(settings.receipt_dir / name)
+    return name
+
+
+# ---------- normalisation (each returns None when the value is missing/unusable) ----------
+
+def _to_amount(value) -> float | None:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        amount = round(float(value), 2)
+    elif isinstance(value, str):
         cleaned = re.sub(r"[^\d.,]", "", value)
         if "," in cleaned and "." not in cleaned:
             cleaned = cleaned.replace(",", ".")  # 12,50 -> 12.50
         cleaned = cleaned.replace(",", "")
         try:
-            return round(float(cleaned), 2)
+            amount = round(float(cleaned), 2)
         except ValueError:
-            pass
-    return 0.0
+            return None
+    else:
+        return None
+    return amount if amount > 0 else None
 
 
-def _to_date(value) -> date:
+def _to_date(value) -> date | None:
     if isinstance(value, str):
         try:
             return date.fromisoformat(value.strip()[:10])
         except ValueError:
             pass
-    return date.today()
+    return None
 
 
-def _to_category(value) -> str:
+def _to_category(value) -> str | None:
     if isinstance(value, str):
         for cat in CATEGORIES:
             if cat.lower() == value.strip().lower():
                 return cat
-    return "Other"
+    return None
 
 
-def _to_currency(value, fallback: str) -> str:
+def _to_currency(value) -> str | None:
     if isinstance(value, str) and len(value.strip()) == 3 and value.strip().isalpha():
         return value.strip().upper()
-    return fallback
+    return None
+
+
+def _to_merchant(value) -> str | None:
+    if isinstance(value, str) and value.strip():
+        return value.strip()[:200]
+    return None
 
 
 def _ocr(data: bytes) -> dict:
@@ -124,19 +177,29 @@ def _ocr(data: bytes) -> dict:
 
 
 def extract(data: bytes, mime: str, fallback_currency: str) -> dict:
-    """Return normalised receipt fields plus the source used ("ai" or "ocr")."""
+    """Return normalised receipt fields, the source used ("ai" or "ocr"), and a
+    `missing` list naming fields that could not be read and were defaulted."""
     try:
         raw, source = ai.extract_receipt(data, mime), "ai"
     except ai.AIUnavailable as exc:
         log.info("AI extraction unavailable (%s); falling back to OCR", exc)
         raw, source = _ocr(data), "ocr"
 
-    merchant = raw.get("merchant")
-    return {
-        "merchant": merchant.strip()[:200] if isinstance(merchant, str) and merchant.strip() else "Unknown merchant",
+    found = {
+        "merchant": _to_merchant(raw.get("merchant")),
         "amount": _to_amount(raw.get("amount")),
-        "currency": _to_currency(raw.get("currency"), fallback_currency),
+        "currency": _to_currency(raw.get("currency")),
         "category": _to_category(raw.get("category")),
         "date": _to_date(raw.get("date")),
-        "source": source,
     }
+    defaults = {
+        "merchant": "Unknown merchant",
+        "amount": 0.0,
+        "currency": fallback_currency,
+        "category": "Other",
+        "date": date.today(),
+    }
+    result = {key: value if value is not None else defaults[key] for key, value in found.items()}
+    result["source"] = source
+    result["missing"] = [key for key, value in found.items() if value is None]
+    return result

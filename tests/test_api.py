@@ -167,14 +167,66 @@ def test_scan_falls_back_to_ocr_when_ai_fails(client, png_bytes, monkeypatch):
     client.put("/budget", json={"amount": 500, "currency": "EUR"})
     res = client.post("/scan-receipt", files={"receipt": ("r.png", png_bytes, "image/png")})
     assert res.status_code == 200
-    assert res.json() == {
+    body = res.json()
+    assert body.pop("receipt_token")
+    assert body == {
         "merchant": "CORNER SHOP",
         "amount": 7.5,
         "currency": "EUR",
         "category": "Other",
         "date": TODAY.isoformat(),
         "source": "ocr",
+        "missing": ["currency", "category", "date"],
     }
+
+
+def test_scan_review_then_confirm(client, png_bytes, monkeypatch):
+    monkeypatch.setattr(
+        ai, "extract_receipt", lambda data, mime: {"merchant": "", "amount": "n/a", "date": "2026-11-01"}
+    )
+    monkeypatch.setattr(ai, "ai_enabled", lambda: True)
+
+    scan = client.post("/scan-receipt", files={"receipt": ("r.png", png_bytes, "image/png")}).json()
+    assert scan["source"] == "ai"
+    assert set(scan["missing"]) == {"merchant", "amount", "currency", "category"}
+    assert scan["merchant"] == "Unknown merchant" and scan["amount"] == 0
+    # Reviewing must not create anything.
+    assert client.get("/expenses").json() == []
+
+    # The user corrects the fields, then confirms.
+    res = client.post(
+        "/expenses",
+        json={
+            "merchant": "Bakery",
+            "amount": 6.2,
+            "currency": "USD",
+            "category": "Food & Dining",
+            "date": scan["date"],
+            "receipt_token": scan["receipt_token"],
+        },
+    )
+    assert res.status_code == 201, res.text
+    exp = res.json()
+    assert exp["has_receipt"] is True
+    img = client.get(f"/expenses/{exp['id']}/receipt")
+    assert img.status_code == 200 and img.content == png_bytes
+
+    # A token can only be used once.
+    again = client.post(
+        "/expenses",
+        json={"merchant": "Dup", "amount": 1, "date": scan["date"], "receipt_token": scan["receipt_token"]},
+    )
+    assert again.status_code == 400
+    assert len(client.get("/expenses").json()) == 1
+
+
+def test_receipt_token_must_be_well_formed(client):
+    res = client.post(
+        "/expenses",
+        json={"merchant": "X", "amount": 1, "date": TODAY.isoformat(), "receipt_token": "../../etc/passwd"},
+    )
+    assert res.status_code == 422
+    assert client.get("/expenses").json() == []
 
 
 def test_assistant_without_key_returns_503(client):
