@@ -14,3 +14,5 @@ receipts/
 
 # macOS
 .DS_Store
+# Tests
+.pytest_cache/
