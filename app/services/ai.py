@@ -2,13 +2,17 @@
 
 import base64
 import json
+import logging
 from functools import lru_cache
 
 from fastapi import HTTPException
-from openai import OpenAI, OpenAIError
+from openai import AuthenticationError, OpenAI, OpenAIError, RateLimitError
 
 from app.config import settings
 from app.models import CATEGORIES
+
+
+log = logging.getLogger(__name__)
 
 
 class AIUnavailable(Exception):
@@ -31,7 +35,11 @@ Return ONLY a JSON object with these keys:
   "amount": final total paid, as a number without currency symbols,
   "currency": ISO 4217 code such as "USD" or "EUR",
   "category": one of {json.dumps(CATEGORIES)},
-  "date": purchase date as "YYYY-MM-DD", or "" if not visible.
+  "date": purchase date as "YYYY-MM-DD".
+Only report what is printed on the receipt. If a value is not clearly shown, use null.
+Never guess: item counts, quantities or line-item prices are not the total, and a
+currency must not be assumed from the language or a "$" alone unless the country is clear.
+The user reviews every field, and a blank field is better than a wrong one.
 """
 
 
@@ -44,7 +52,6 @@ def extract_receipt(image_bytes: bytes, mime_type: str) -> dict:
     try:
         response = _client().chat.completions.create(
             model=settings.openai_model,
-            temperature=0,
             response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": RECEIPT_PROMPT},
@@ -98,6 +105,8 @@ def ask_assistant(question: str, summary: dict) -> str:
                     "content": (
                         "You are Budget Buddy, a friendly assistant inside a personal budgeting app. "
                         "Answer clearly, briefly and practically using the user's data below. "
+                        "Reply in plain text for a phone chat bubble: no markdown, no asterisks or "
+                        "headings; short sentences, and simple '-' lists only when they really help. "
                         "Do not give investment, tax, or legal advice.\n\n"
                         f"User data for this month (JSON):\n{json.dumps(context)}"
                     ),
@@ -105,7 +114,19 @@ def ask_assistant(question: str, summary: dict) -> str:
                 {"role": "user", "content": question},
             ],
         )
+    except AuthenticationError as exc:
+        log.warning("OpenAI rejected the API key: %s", exc)
+        raise HTTPException(
+            status_code=502, detail="OpenAI rejected the API key. Check OPENAI_API_KEY on the server."
+        ) from exc
+    except RateLimitError as exc:
+        log.warning("OpenAI rate limit or quota: %s", exc)
+        raise HTTPException(
+            status_code=502,
+            detail="OpenAI usage limit reached. Check billing/quota on your OpenAI account.",
+        ) from exc
     except OpenAIError as exc:
+        log.warning("OpenAI request failed: %s", exc)
         raise HTTPException(status_code=502, detail="The AI service failed to respond") from exc
 
     return completion.choices[0].message.content or ""
