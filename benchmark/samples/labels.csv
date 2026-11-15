@@ -1,0 +1,4 @@
+file,merchant,amount,date,category,currency
+grocery-subtotal.png,Green Leaf Market,12.75,2026-11-05,Groceries,USD
+cafe-us-date.png,Blue Door Coffee,10.80,2026-10-30,Food & Dining,
+no-total.png,Campus Bookstore,,,Shopping,

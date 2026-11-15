@@ -189,6 +189,17 @@ def _ocr(data: bytes) -> dict:
     }
 
 
+def normalise(raw: dict) -> dict:
+    """Clean what a model or OCR returned; a field it couldn't read becomes None."""
+    return {
+        "merchant": _to_merchant(raw.get("merchant")),
+        "amount": _to_amount(raw.get("amount")),
+        "currency": _to_currency(raw.get("currency")),
+        "category": _to_category(raw.get("category")),
+        "date": _to_date(raw.get("date")),
+    }
+
+
 def extract(data: bytes, mime: str, fallback_currency: str) -> dict:
     """Return normalised receipt fields, the source used ("ai" or "ocr"), and a
     `missing` list naming fields that could not be read and were defaulted."""
@@ -198,13 +209,7 @@ def extract(data: bytes, mime: str, fallback_currency: str) -> dict:
         log.info("AI extraction unavailable (%s); falling back to OCR", exc)
         raw, source = _ocr(data), "ocr"
 
-    found = {
-        "merchant": _to_merchant(raw.get("merchant")),
-        "amount": _to_amount(raw.get("amount")),
-        "currency": _to_currency(raw.get("currency")),
-        "category": _to_category(raw.get("category")),
-        "date": _to_date(raw.get("date")),
-    }
+    found = normalise(raw)
     defaults = {
         "merchant": "Unknown merchant",
         "amount": 0.0,

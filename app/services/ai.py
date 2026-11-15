@@ -61,16 +61,25 @@ RECEIPT_SCHEMA = {
 
 def extract_receipt(image_bytes: bytes, mime_type: str) -> dict:
     """Return the raw dict the model produced. Raises AIUnavailable on any failure."""
+    raw, _usage = call_receipt_model(image_bytes, mime_type)
+    return raw
+
+
+def call_receipt_model(
+    image_bytes: bytes, mime_type: str, model: str | None = None, prompt: str | None = None
+) -> tuple[dict, dict]:
+    """One receipt call: (fields as the model returned them, token usage).
+    `model` / `prompt` default to the app's; the benchmark overrides them."""
     if not ai_enabled():
         raise AIUnavailable("OPENAI_API_KEY is not set")
 
     data_url = f"data:{mime_type};base64,{base64.b64encode(image_bytes).decode()}"
     try:
         response = _client().chat.completions.create(
-            model=settings.openai_model,
+            model=model or settings.openai_model,
             response_format={"type": "json_schema", "json_schema": RECEIPT_SCHEMA},
             messages=[
-                {"role": "system", "content": RECEIPT_PROMPT},
+                {"role": "system", "content": prompt or RECEIPT_PROMPT},
                 {
                     "role": "user",
                     "content": [
@@ -83,7 +92,12 @@ def extract_receipt(image_bytes: bytes, mime_type: str) -> dict:
         message = response.choices[0].message
         if getattr(message, "refusal", None):
             raise AIUnavailable(f"model refused: {message.refusal}")
-        return json.loads(message.content or "")
+        usage = response.usage
+        tokens = {
+            "input_tokens": getattr(usage, "prompt_tokens", None),
+            "output_tokens": getattr(usage, "completion_tokens", None),
+        }
+        return json.loads(message.content or ""), tokens
     except (OpenAIError, json.JSONDecodeError, IndexError) as exc:
         raise AIUnavailable(str(exc)) from exc
 

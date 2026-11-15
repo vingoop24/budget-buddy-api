@@ -16,3 +16,7 @@ receipts/
 .DS_Store
 # Tests
 .pytest_cache/
+
+# Benchmark: real receipts and their results stay private
+benchmark/receipts/
+benchmark/results/

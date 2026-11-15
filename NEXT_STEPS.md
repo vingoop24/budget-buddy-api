@@ -29,7 +29,7 @@ The order below puts what other people need to use the app (accounts, hosting) b
 
 ## Phase 2 — Prove scan accuracy
 
-- [ ] Accuracy benchmark in the repo: 30–50 receipts with labeled merchant, date, total and category; one command scores each field per model and prompt, with cost and latency
+- [ ] Accuracy benchmark in the repo: 30–50 receipts with labeled merchant, date, total and category; one command scores each field per model and prompt, with cost and latency — command built (`python -m benchmark.run`, see [benchmark/README.md](benchmark/README.md)); waiting on labeled receipts
 - [ ] Iterate on the prompt and model, then re-measure and record the improvement
 - [ ] Measure accuracy from real use: compare what the scan extracted with what the user confirmed in the review step
 - [ ] Keep real receipts private (gitignored or anonymized)

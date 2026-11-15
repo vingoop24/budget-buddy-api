@@ -35,6 +35,11 @@ The server starts without `OPENAI_API_KEY`. Scanning then uses Tesseract
 pytest
 ```
 
+## Receipt-scan benchmark
+
+`python -m benchmark.run --samples` scores receipt reading field by field per model and
+prompt. See [benchmark/README.md](benchmark/README.md) to run it on real receipts.
+
 ## Project layout
 
 ```
