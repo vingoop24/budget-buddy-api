@@ -39,7 +39,7 @@ def list_category_budgets(session: Session = Depends(get_session)):
     return get_category_budgets(session)
 
 
-@router.put("/category-budgets/{category}", response_model=CategoryBudgetRead)
+@router.put("/category-budgets/{category:path}", response_model=CategoryBudgetRead)
 def set_category_budget(
     body: CategoryBudgetUpdate,
     category: str = Path(min_length=1, max_length=60),
@@ -56,7 +56,7 @@ def set_category_budget(
     return item
 
 
-@router.delete("/category-budgets/{category}", status_code=204)
+@router.delete("/category-budgets/{category:path}", status_code=204)
 def delete_category_budget(category: str, session: Session = Depends(get_session)):
     item = session.get(CategoryBudget, category)
     if item is None:

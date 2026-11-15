@@ -4,9 +4,9 @@ Budget Friend is an AI-powered personal finance app: a FastAPI + SQLite backend 
 
 ## Where it stands
 
-- 20 REST endpoints with 17 passing pytest API tests
+- 20 REST endpoints with 19 passing pytest API tests
 - 7-screen mobile app: home, expenses, budget, assistant, receipt scan, new/edit expense
-- Receipt scanning with an OpenAI vision model (currently `gpt-5.4-mini`, chosen over `gpt-4o-mini` after a side-by-side test of accuracy and speed): JSON output, field-level normalization, and a review step that flags fields the model couldn't read before anything is saved
+- Receipt scanning with an OpenAI vision model (currently `gpt-5.4-mini`, chosen over `gpt-4o-mini` after a side-by-side test of accuracy and speed): output constrained by a strict JSON schema (OpenAI Structured Outputs), field-level normalization, and a review step that flags fields the model couldn't read before anything is saved
 - Monthly budgets and per-category limits, with alerts at 80% (warning) and 100% (over)
 - Monthly spending trends and AI-generated spending insights
 
@@ -14,10 +14,10 @@ The order below puts what other people need to use the app (accounts, hosting) b
 
 ## Phase 0 — Fix and tighten what's built
 
-- [ ] Only alert when a save crosses 80% or 100%, instead of on every save past the threshold
-- [ ] Allow category names containing `/` in category-limit endpoints
-- [ ] End-to-end test of category limits, alerts and trends (web and phone)
-- [ ] Receipt parsing with OpenAI Structured Outputs (strict JSON schema)
+- [x] Only alert when a save crosses 80% or 100%, instead of on every save past the threshold
+- [x] Allow category names containing `/` in category-limit endpoints
+- [ ] End-to-end test of category limits, alerts and trends (web done, 12/12; phone check pending)
+- [x] Receipt parsing with OpenAI Structured Outputs (strict JSON schema)
 - [ ] One product name across app, repos and docs
 
 ## Phase 1 — Plan it like a product

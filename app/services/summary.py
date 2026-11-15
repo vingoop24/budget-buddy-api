@@ -88,7 +88,7 @@ def build_summary(session: Session, month: str | None) -> dict:
     percent_used = round(total_spent / budget.amount * 100, 2) if budget.amount else 0.0
     status = _status(percent_used)
     advice = {
-        "over_budget": "You have gone over your monthly budget.",
+        "over_budget": "You have reached or gone over your monthly budget.",
         "warning": "You are close to your monthly limit. Slow down non-essential spending.",
         "good": "You are in a good budget range right now.",
     }[status]
@@ -119,14 +119,16 @@ def build_summary(session: Session, month: str | None) -> dict:
     alerts = []
     if status == "over_budget":
         alerts.append({"level": "over", "category": None,
-                       "message": f"You're {_money(-remaining, cur)} over your monthly budget."})
+                       "message": f"You're {_money(-remaining, cur)} over your monthly budget."
+                       if remaining < 0 else "You've spent your whole monthly budget."})
     elif status == "warning":
         alerts.append({"level": "warning", "category": None,
                        "message": f"You've used {percent_used:.0f}% of your monthly budget. {_money(remaining, cur)} left."})
     for c in category_budgets:
         if c["status"] == "over_budget":
             alerts.append({"level": "over", "category": c["category"],
-                           "message": f"{c['category']} is {_money(-c['remaining'], cur)} over its {_money(c['limit'], cur)} limit."})
+                           "message": f"{c['category']} is {_money(-c['remaining'], cur)} over its {_money(c['limit'], cur)} limit."
+                           if c["remaining"] < 0 else f"{c['category']} has reached its {_money(c['limit'], cur)} limit."})
         elif c["status"] == "warning":
             alerts.append({"level": "warning", "category": c["category"],
                            "message": f"{c['category']} has used {c['percent_used']:.0f}% of its {_money(c['limit'], cur)} limit."})

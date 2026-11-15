@@ -322,3 +322,26 @@ def test_trends(client):
     t = client.get("/trends", params={"months": 2, "end": "2026-01"}).json()
     assert [m["month"] for m in t["months"]] == ["2025-12", "2026-01"]
     assert client.get("/trends", params={"months": 0}).status_code == 422
+
+
+def test_category_limit_names_with_slash(client):
+    res = client.put("/category-budgets/Food%20%2F%20Drinks", json={"amount": 50})
+    assert res.status_code == 200, res.text
+    assert res.json() == {"category": "Food / Drinks", "amount": 50.0}
+    add(client, amount=45, category="Food / Drinks")
+    cats = {c["category"]: c for c in client.get("/summary").json()["category_budgets"]}
+    assert cats["Food / Drinks"]["status"] == "warning"
+    assert client.delete("/category-budgets/Food%20%2F%20Drinks").status_code == 204
+    assert client.get("/category-budgets").json() == []
+
+
+def test_alert_wording_at_exactly_the_limit(client):
+    client.put("/budget", json={"amount": 100, "currency": "USD"})
+    client.put("/category-budgets/Groceries", json={"amount": 100})
+    add(client, amount=100, category="Groceries")
+    messages = [a["message"] for a in client.get("/summary").json()["alerts"]]
+    assert messages == [
+        "You've spent your whole monthly budget.",
+        "Groceries has reached its 100.00 USD limit.",
+    ]
+    assert not any("-0.00" in m for m in messages)
