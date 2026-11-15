@@ -12,7 +12,7 @@ from app.schemas import (
     ChatRequest,
     ChatResponse,
 )
-from app.services import ai
+from app.services import ai, events
 from app.services.summary import build_summary, build_trends, get_budget, get_category_budgets
 
 router = APIRouter(tags=["budget"])
@@ -73,6 +73,12 @@ def trends(
     session: Session = Depends(get_session),
 ):
     return build_trends(session, months, end)
+
+
+@router.get("/metrics", tags=["analytics"])
+def metrics(weeks: int = Query(default=8, ge=1, le=52), session: Session = Depends(get_session)):
+    """Weekly product KPIs from the event log (definitions in the PRD)."""
+    return events.build_metrics(session, weeks)
 
 
 @router.get("/summary")

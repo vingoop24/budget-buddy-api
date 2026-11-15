@@ -345,3 +345,93 @@ def test_alert_wording_at_exactly_the_limit(client):
         "Groceries has reached its 100.00 USD limit.",
     ]
     assert not any("-0.00" in m for m in messages)
+
+
+def _events(name=None):
+    from sqlmodel import Session, select
+
+    from app.database import engine
+    from app.models import Event
+
+    with Session(engine) as s:
+        rows = s.exec(select(Event).order_by(Event.id)).all()
+        return [(e.name, e.expense_id, e.properties) for e in rows if name in (None, e.name)]
+
+
+def test_manual_expense_logs_event(client):
+    exp = add(client, category="Groceries")
+    assert _events() == [
+        ("expense_created", exp["id"], {"source": "manual", "category": "Groceries", "currency": "USD"})
+    ]
+
+
+def test_scan_events_and_corrections(client, png_bytes, monkeypatch):
+    monkeypatch.setattr(ai, "ai_enabled", lambda: True)
+    monkeypatch.setattr(
+        ai, "extract_receipt",
+        lambda data, mime: {"merchant": "Trader Joe's", "amount": 23.4, "currency": "USD",
+                            "category": "Groceries", "date": None},
+    )
+    scan = client.post("/scan-receipt", files={"receipt": ("r.png", png_bytes, "image/png")}).json()
+    (name, exp_id, props), = _events("scan_completed")
+    assert exp_id is None and props["source"] == "ai" and props["missing"] == ["date"]
+    assert isinstance(props["duration_ms"], int)
+
+    # User keeps merchant/category/currency, fixes the amount, fills in the unread date.
+    res = client.post("/expenses", json={
+        "merchant": "trader joe's ", "amount": 32.4, "currency": "USD", "category": "Groceries",
+        "date": "2026-11-02", "receipt_token": scan["receipt_token"],
+    })
+    exp = res.json()
+    assert _events("expense_created")[0][2]["source"] == "scan"
+    (_, confirmed_id, confirmed), = _events("scan_confirmed")
+    assert confirmed_id == exp["id"]
+    assert confirmed["fields"] == {
+        "merchant": "correct", "amount": "corrected", "date": "unread",
+        "category": "correct", "currency": "correct",
+    }
+    assert confirmed["corrected"] == ["amount", "date"]
+
+
+def test_abandoned_scan_is_not_confirmed(client, png_bytes, monkeypatch):
+    monkeypatch.setattr(ai, "extract_receipt", lambda d, m: (_ for _ in ()).throw(ai.AIUnavailable("x")))
+    monkeypatch.setattr("app.services.receipts._ocr", lambda d: {"merchant": "SHOP", "amount": 5, "date": ""})
+    client.post("/scan-receipt", files={"receipt": ("r.png", png_bytes, "image/png")})
+    assert [e[0] for e in _events()] == ["scan_completed"]
+    assert _events()[0][2]["source"] == "ocr" and _events()[0][2]["model"] is None
+
+
+def test_metrics(client, png_bytes, monkeypatch):
+    monkeypatch.setattr(ai, "ai_enabled", lambda: True)
+    monkeypatch.setattr(
+        ai, "extract_receipt",
+        lambda data, mime: {"merchant": "Cafe", "amount": 7.75, "currency": "USD",
+                            "category": "Food & Dining", "date": TODAY.isoformat()},
+    )
+    add(client)  # manual
+    add(client)  # manual
+    for amount in (7.75, 9.0):  # first confirmed unchanged, second with a corrected amount
+        scan = client.post("/scan-receipt", files={"receipt": ("r.png", png_bytes, "image/png")}).json()
+        client.post("/expenses", json={
+            "merchant": "Cafe", "amount": amount, "currency": "USD", "category": "Food & Dining",
+            "date": TODAY.isoformat(), "receipt_token": scan["receipt_token"],
+        })
+    client.post("/scan-receipt", files={"receipt": ("r.png", png_bytes, "image/png")})  # abandoned
+
+    m = client.get("/metrics", params={"weeks": 2}).json()
+    assert len(m["weeks"]) == 2
+    assert m["weeks"][0]["expenses_logged"] == 0
+    week = m["weeks"][-1]
+    assert week == {
+        "week_start": week["week_start"],
+        "expenses_logged": 4,
+        "expenses_per_active_user": 4,
+        "scan_share": 0.5,
+        "scans_completed": 3,
+        "scans_confirmed": 2,
+        "scan_success_rate": 0.5,
+        "active_users": 1,
+    }
+    assert m["field_accuracy"]["amount"] == 0.5
+    assert m["field_accuracy"]["merchant"] == 1.0
+    assert client.get("/metrics", params={"weeks": 0}).status_code == 422

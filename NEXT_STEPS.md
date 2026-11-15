@@ -4,7 +4,7 @@ BFF (Budget Financial Friend) is an AI-powered personal finance app: a FastAPI +
 
 ## Where it stands
 
-- 20 REST endpoints with 19 passing pytest API tests
+- 21 REST endpoints with 23 passing pytest API tests
 - 7-screen mobile app: home, expenses, budget, assistant, receipt scan, new/edit expense
 - Receipt scanning with an OpenAI vision model (currently `gpt-5.4-mini`, chosen over `gpt-4o-mini` after a side-by-side test of accuracy and speed): output constrained by a strict JSON schema (OpenAI Structured Outputs), field-level normalization, and a review step that flags fields the model couldn't read before anything is saved
 - Monthly budgets and per-category limits, with alerts at 80% (warning) and 100% (over)
@@ -16,16 +16,16 @@ The order below puts what other people need to use the app (accounts, hosting) b
 
 - [x] Only alert when a save crosses 80% or 100%, instead of on every save past the threshold
 - [x] Allow category names containing `/` in category-limit endpoints
-- [ ] End-to-end test of category limits, alerts and trends (web done, 12/12; phone check pending)
+- [x] End-to-end test of category limits, alerts and trends (12/12 in the browser)
 - [x] Receipt parsing with OpenAI Structured Outputs (strict JSON schema)
 - [x] One product name across app and docs: BFF (Budget Financial Friend); the GitHub repos keep their budget-buddy-* names
 
 ## Phase 1 — Plan it like a product
 
-- [ ] One-page product requirements doc: problem, target user (students on a budget), goals, scope, non-goals, risks
+- [x] One-page product requirements doc: problem, target user (students on a budget), goals, scope, non-goals, risks
 - [ ] Backlog, sprints, and roadmap tracked in Jira, with docs in Confluence
-- [ ] Define product metrics: expenses logged per user per week, share of expenses entered by receipt scan, scan success rate, weekly active users
-- [ ] Event logging so those metrics can be measured: expense added (manual or scan), scan completed, and which scanned fields the user corrected
+- [x] Define product metrics: expenses logged per user per week, share of expenses entered by receipt scan, scan success rate, weekly active users
+- [x] Event logging so those metrics can be measured: expense added (manual or scan), scan completed, and which scanned fields the user corrected; weekly KPIs at `GET /metrics`
 
 ## Phase 2 — Prove scan accuracy
 

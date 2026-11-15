@@ -3,6 +3,7 @@
 from datetime import date as Date
 from datetime import datetime, timezone
 
+from sqlalchemy import JSON, Column
 from sqlmodel import Field, SQLModel
 
 
@@ -50,3 +51,13 @@ class CategoryBudget(SQLModel, table=True):
 
     category: str = Field(primary_key=True, max_length=60)
     amount: float
+
+
+class Event(SQLModel, table=True):
+    """Product analytics event (see NEXT_STEPS.md, Phase 1). Append-only."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    name: str = Field(index=True, max_length=40)  # expense_created | scan_completed | scan_confirmed
+    created_at: datetime = Field(default_factory=_now, index=True)
+    expense_id: int | None = Field(default=None, index=True)
+    properties: dict = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))

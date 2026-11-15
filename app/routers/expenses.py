@@ -5,7 +5,7 @@ from sqlmodel import Session, col, func, select
 from app.database import get_session
 from app.models import CATEGORIES, Expense
 from app.schemas import ExpenseCreate, ExpenseRead, ExpenseUpdate
-from app.services import receipts
+from app.services import events, receipts
 from app.services.summary import parse_month
 
 router = APIRouter(tags=["expenses"])
@@ -59,10 +59,20 @@ def list_expenses(
 @router.post("/expenses", response_model=ExpenseRead, status_code=201)
 def create_expense(body: ExpenseCreate, session: Session = Depends(get_session)):
     expense = Expense(**body.model_dump(exclude={"receipt_token"}))
+    extracted = None
     if body.receipt_token:
-        expense.receipt_image = receipts.claim_pending(body.receipt_token)
+        expense.receipt_image, extracted = receipts.claim_pending(body.receipt_token)
     session.add(expense)
     try:
+        session.flush()  # assigns expense.id for the events below
+        events.record(
+            session, "expense_created", expense.id,
+            source="scan" if body.receipt_token else "manual",
+            category=expense.category, currency=expense.currency,
+        )
+        if extracted is not None:
+            saved = body.model_dump(mode="json", include={"merchant", "amount", "currency", "category", "date"})
+            events.record(session, "scan_confirmed", expense.id, **events.compare_scan(extracted, saved))
         session.commit()
     except Exception:
         receipts.delete_image(expense.receipt_image)

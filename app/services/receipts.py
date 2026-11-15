@@ -1,6 +1,7 @@
 """Receipt file storage and data extraction (AI first, Tesseract OCR as fallback)."""
 
 import io
+import json
 import logging
 import re
 import time
@@ -81,17 +82,21 @@ def _cleanup_pending() -> None:
             log.warning("Could not clean up pending receipt %s", path.name)
 
 
-def save_pending(data: bytes, ext: str) -> str:
-    """Hold a scanned image until the user confirms the expense. Returns its token."""
+def save_pending(data: bytes, ext: str, extracted: dict | None = None) -> str:
+    """Hold a scanned image (and what the scan read from it) until the user confirms
+    the expense. Returns its token."""
     _pending_dir().mkdir(parents=True, exist_ok=True)
     _cleanup_pending()
     token = f"{uuid.uuid4().hex}.{ext}"
     (_pending_dir() / token).write_bytes(data)
+    if extracted is not None:
+        (_pending_dir() / f"{token}.json").write_text(json.dumps(extracted, default=str))
     return token
 
 
-def claim_pending(token: str) -> str:
-    """Move a pending image into permanent storage. Returns the stored file name."""
+def claim_pending(token: str) -> tuple[str, dict | None]:
+    """Move a pending image into permanent storage. Returns the stored file name and
+    what the scan extracted (None if it wasn't recorded)."""
     if not re.match(TOKEN_PATTERN, token):
         raise HTTPException(status_code=422, detail="Invalid receipt token")
     source = _pending_dir() / token
@@ -99,10 +104,18 @@ def claim_pending(token: str) -> str:
         raise HTTPException(
             status_code=400, detail="Receipt image expired or was already used. Scan it again."
         )
+    sidecar = _pending_dir() / f"{token}.json"
+    extracted = None
+    if sidecar.is_file():
+        try:
+            extracted = json.loads(sidecar.read_text())
+        except (OSError, ValueError):
+            log.warning("Unreadable scan record for %s", token)
+        sidecar.unlink(missing_ok=True)
     settings.receipt_dir.mkdir(parents=True, exist_ok=True)
     name = f"{uuid.uuid4().hex}{source.suffix}"
     source.replace(settings.receipt_dir / name)
-    return name
+    return name, extracted
 
 
 # ---------- normalisation (each returns None when the value is missing/unusable) ----------

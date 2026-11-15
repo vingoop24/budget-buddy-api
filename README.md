@@ -61,7 +61,11 @@ main.py              shim so `uvicorn main:app` works
 | POST / GET | `/expenses/{id}/receipt` | Attach / view a receipt image |
 | GET | `/categories` | Default and used categories |
 | GET / PUT | `/budget` | Read / set the monthly budget |
-| GET | `/summary?month=YYYY-MM` | Monthly summary (`/ai-insights` is an alias) |
+| GET | `/category-budgets` | Per-category monthly limits |
+| PUT / DELETE | `/category-budgets/{category}` | Set / remove a category limit |
+| GET | `/trends?months=6&end=YYYY-MM` | Monthly totals for the trend chart |
+| GET | `/metrics?weeks=8` | Weekly product KPIs from the event log |
+| GET | `/summary?month=YYYY-MM` | Monthly summary with category limits and alerts (`/ai-insights` is an alias) |
 | POST | `/scan-receipt` | Extract fields for review (returns `missing` + `receipt_token`) |
 | POST | `/scan-and-save-receipt` | Extract and save as an expense |
 | POST | `/ai-assistant` | Ask the budgeting assistant |
