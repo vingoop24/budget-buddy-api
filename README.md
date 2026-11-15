@@ -1,6 +1,6 @@
-# Budget Buddy API
+# BFF API
 
-FastAPI backend for Budget Buddy, an AI-powered personal finance assistant.
+FastAPI backend for BFF (Budget Financial Friend), an AI-powered personal finance assistant.
 
 ## Features
 
@@ -85,4 +85,4 @@ If you have an old `budget_buddy.db`, delete it before starting the server.
 
 ## Related repository
 
-Frontend: [Budget Buddy Mobile](https://github.com/vingoop24/budget-buddy-mobile)
+Frontend: [BFF Mobile](https://github.com/vingoop24/budget-buddy-mobile)

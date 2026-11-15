@@ -19,7 +19,7 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="Budget Buddy API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="BFF API (Budget Financial Friend)", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -37,7 +37,7 @@ app.include_router(receipts.router)
 
 @app.get("/", tags=["meta"])
 def home():
-    return {"message": "Welcome to Budget Buddy!", "docs": "/docs"}
+    return {"message": "Welcome to BFF, your Budget Financial Friend!", "docs": "/docs"}
 
 
 @app.get("/health", tags=["meta"])

@@ -1,6 +1,6 @@
-# Budget Friend — Roadmap
+# BFF (Budget Financial Friend) — Roadmap
 
-Budget Friend is an AI-powered personal finance app: a FastAPI + SQLite backend (this repo) and a React Native / Expo mobile client ([budget-buddy-mobile](https://github.com/vingoop24/budget-buddy-mobile)).
+BFF (Budget Financial Friend) is an AI-powered personal finance app: a FastAPI + SQLite backend (this repo) and a React Native / Expo mobile client ([budget-buddy-mobile](https://github.com/vingoop24/budget-buddy-mobile)).
 
 ## Where it stands
 
@@ -18,7 +18,7 @@ The order below puts what other people need to use the app (accounts, hosting) b
 - [x] Allow category names containing `/` in category-limit endpoints
 - [ ] End-to-end test of category limits, alerts and trends (web done, 12/12; phone check pending)
 - [x] Receipt parsing with OpenAI Structured Outputs (strict JSON schema)
-- [ ] One product name across app, repos and docs
+- [x] One product name across app and docs: BFF (Budget Financial Friend); the GitHub repos keep their budget-buddy-* names
 
 ## Phase 1 — Plan it like a product
 
